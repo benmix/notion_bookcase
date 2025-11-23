@@ -1,17 +1,13 @@
 # notion_bookcase
 
-## New Features ! !
+Keep Goodreads and Douban reading logs in sync with a Notion database. The project ships fully automated scripts, GitHub Actions workflows, and reference templates so you can bootstrap a personal reading hub in minutes.
 
-- [x] 🥳 Support Sync Source from [Goodreads](https://www.goodreads.com)
-- [x] 🥳 Support Sync Source from [Douban](https://www.douban.com)
+## Highlights
 
-## Introduction
-
-- [x] Use douban rss source to sync book reading status.
-- [x] Use douban page crawler to sync book reading status.
-- [x] Use goodreads page crawler to sync book reading status.
-- [x] Uses official `@notionhq/client` with strict env validation (`NOTION_TOKEN`, `NOTION_BOOK_DATABASE_ID`, `DOUBAN_USER_ID`, `GOODREADS_USER_ID`).
-- [x] Sync scripts fail fast on missing env / Notion errors and log successes with counts.
+- Syncs Douban (RSS + full crawl) and Goodreads shelves into a Notion database.
+- Uses the official `@notionhq/client` and validates `NOTION_TOKEN`, `NOTION_BOOK_DATABASE_ID`, `DOUBAN_USER_ID`, `GOODREADS_USER_ID` before any work starts.
+- Built with Deno + TypeScript plus `deno_dom`, `rss`, and `dayjs` for parsing and reliable scheduling.
+- Scripts fail fast on upstream errors, log processed records, and can be triggered manually or on a schedule via GitHub Actions.
 
 ## Showcase
 
@@ -19,64 +15,112 @@
 
 <img width='70%' src='/assets/screenshot_showcase.png'/>
 
-## How to Use
+## Tech Stack & Scripts
 
-### 1. Fork the repository.
+| Area        | Details |
+|-------------|---------|
+| Runtime     | Deno (TypeScript ES modules) |
+| Libraries   | `@notionhq/client`, `deno_dom`, `rss`, `dayjs` |
+| Commands    | `deno task start:douban:rss`, `deno task start:douban:full`, `deno task start:goodreads:full`, `deno task start:goodreads:part` |
+| Direct run  | `deno run -A src/<script>.ts` |
 
-- git clone the respository or fork the repository
-- you can use github actions to create schedule task
+> All commands assume the required environment variables are exported in your shell or
+> injected by your CI provider.
 
-### 2. Creating a Notion Intergretion.
+## Detailed Setup Guide
 
-- create a notion integretion.
-- copy the notion integretion token.
-- [Learn more](https://developers.notion.com/docs/create-a-notion-integration#step-1-create-an-integration)
+The following walkthrough mirrors how the production automation is wired. Each step
+includes the resources you need so you can follow along without leaving this README.
 
-### 3. Duplicating the [notion template](https://benmix.notion.site/d7bb93e54a9e43b3ad04762492880f6f?v=8a0e46806aaa4a2d905639d4c3043bcc)
+1. Get the code
+  
+  1.1. Fork the repository (recommended) or clone it locally.
+  
+  1.2. Optional: enable GitHub Actions in your fork so you can schedule sync jobs later.
 
-<img width='70%' src='/assets/screenshot_notion_database.png'/>
+2. Create a Notion integration
+  
+  2.1. Visit the [Notion integrations dashboard](https://www.notion.so/my-integrations).
+  
+  2.2. Create a new internal integration and copy the **Secret** — that will be your `NOTION_TOKEN`.
+  
+  2.3. [Full instructions](https://developers.notion.com/docs/create-a-notion-integration#step-1-create-an-integration).
+  
+3. Duplicate the starter Notion database
+  
+  3.1. Duplicate [this template](https://benmix.notion.site/d7bb93e54a9e43b3ad04762492880f6f?v=8a0e46806aaa4a2d905639d4c3043bcc) into your workspace.
+  
+  3.2. Keep the resulting database URL handy.
 
-### 4. Connecting to Your Notion Database
+4. Share the database with your integration
+  
+  4.1. Open the duplicated database, click `Share`, and invite the integration from step 2.
+  
+  4.2. [Reference docs](https://developers.notion.com/docs/create-a-notion-integration#step-2-share-a-database-with-your-integration).
 
-- add your created integretion to your notion's database.
-- [Learn more](https://developers.notion.com/docs/create-a-notion-integration#step-2-share-a-database-with-your-integration)
+5. Capture the database ID
+  
+  5.1. With the database open, copy the UUID from the URL (it sits between the last `/` and the `?`). That value becomes `NOTION_BOOK_DATABASE_ID`.
+  
+  5.2. [Step-by-step guide](https://developers.notion.com/docs/create-a-notion-integration#step-3-save-the-database-id).
 
-### 5. Getting Database id
+6. Collect your source user IDs
+  
+  6.1. **Douban:** open your Douban profile (e.g. `https://www.douban.com/people/<id>/`) and copy the `<id>` portion — that's `DOUBAN_USER_ID`.
+  
+  6.2. **Goodreads:** open your Goodreads profile (e.g. `https://www.goodreads.com/user/show/<id>-name`) and copy the numeric `<id>` — that's `GOODREADS_USER_ID`.
 
-- copy the cloned template's database id.
-- please save it, we will use it soon.
-- [Learn more](https://developers.notion.com/docs/create-a-notion-integration#step-3-save-the-database-id)
+7. Configure secrets for automation, If you intend to run the GitHub Actions workflows included in this repo:
 
-### 6. Getting User id From BookSource
+  7.1. Open `Settings` → `Secrets and variables` → `Actions` in your fork.
+  
+  7.2. Create the following repository secrets:
+    - `NOTION_TOKEN`
+    - `NOTION_BOOK_DATABASE_ID`
+    - `DOUBAN_USER_ID`
+    - `GOODREADS_USER_ID`
 
-- Douban Source
-  - goto your douban homepage, copy your douban's id,
-  - please save it. we will use it soon.
-    <img width='70%' src='/assets/screenshot_doban_user_id.png'/>
-- GoodReads Source
-  - goto your goodreads profile page, copy your goodreads's id,
-  - please save it. we will use it soon.
-    <img width='70%' src='/assets/screenshot_goodreads_profile.png'/>
+8. Run the first sync
+  
+  8.1. The first Douban import should be a full sync to backfill history:
+  
+```bash
+    deno task start:douban:full
+```
+  
+  8.2. Goodreads imports can also start with the full sync (`deno task start:goodreads:full`).
 
-### 7. Setting secrets for git actions.
+9. Schedule incremental syncs
+  
+  9.1. After the initial backfill, schedule the RSS-based incremental sync to keep the database up-to-date. The provided GitHub Actions workflow runs `deno task start:douban:rss`.
+  
+  9.2. Adjust the workflow cron expression if you want a different cadence.
 
-- add below secrets to your repository actions configuration.
-- add **NOTION_TOKEN**([STEP 2](#2-creating-a-notion-intergretion)),
-- add **NOTION_BOOK_DATABASE_ID**([STEP 5](#5-get-database-id))
-- add **DOUBAN_USER_ID** ([STEP 6](#6-get-user-id-from-booksource))
-- add **GOODREADS_USER_ID** ([STEP 6](#6-get-user-id-from-booksource))
-  <img width='70%' src='/assets/screenshot_add_secrets.png'/>
+## Manual Execution
 
-### 8. Sync Data
+When running locally you can export environment variables and run any script directly:
 
-- first sync, you must run sync_full action to full sync your douban's book
-  reading data (`deno task start:douban:full`).
+```bash
+export NOTION_TOKEN="***"
+export NOTION_BOOK_DATABASE_ID="***"
+export DOUBAN_USER_ID="***"
+export GOODREADS_USER_ID="***"
 
-### 9. Finally
+deno task start:goodreads:part   # Goodreads home-page incremental sync
+```
 
-- set the schedule to execute the sync_rss action.
-- you can update the workflow configuration to modify the timing.
+Each script logs how many books were pulled and which records were sent to Notion. Failed
+requests automatically retry a few times before being skipped.
+
+## Troubleshooting
+
+- **Missing env vars:** the process exits immediately with an explicit error. Double-check
+  your shell exports or GitHub secrets.
+- **Notion permission errors:** ensure the integration still has access to the database
+  (step 4).
+- **Rate limits:** rerun the job later — the scripts are idempotent and will skip entries
+  already stored in Notion.
 
 ## License
 
-The Project is undering [MIT License](/LICENSE)
+This project is distributed under the [MIT License](./LICENSE).
