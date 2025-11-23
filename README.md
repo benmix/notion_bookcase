@@ -70,7 +70,7 @@
 ### 8. Sync Data
 
 - first sync, you must run sync_full action to full sync your douban's book
-  reading data.
+  reading data (`deno task start:douban:full`).
 
 ### 9. Finally
 

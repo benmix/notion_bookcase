@@ -35,7 +35,7 @@ Checklist.md
 
 ## Commands
 - `deno task start:douban:rss` — 豆瓣 RSS 增量同步
-- `deno task start:dounan:full` — 豆瓣全量同步
+- `deno task start:douban:full` — 豆瓣全量同步
 - `deno task start:goodreads:full` — Goodreads 全量同步
 - `deno task start:goodreads:part` — Goodreads 首页增量同步
 - `deno run -A <script>` — 直接运行任意同步脚本

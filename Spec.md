@@ -13,7 +13,7 @@
 
 **Why this priority**: 豆瓣是主要数据源，缺失会让数据库失去核心价值。
 
-**Independent Test**: 配置 `DOUBAN_USER_ID`、`NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID` 后运行 `deno task start:dounan:full` 或 `deno task start:douban:rss`，校验 Notion 中条目数量与豆瓣一致且无重复。
+**Independent Test**: 配置 `DOUBAN_USER_ID`、`NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID` 后运行 `deno task start:douban:full` 或 `deno task start:douban:rss`，校验 Notion 中条目数量与豆瓣一致且无重复。
 
 **Acceptance Scenarios**:
 
