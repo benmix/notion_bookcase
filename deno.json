@@ -11,7 +11,6 @@
     "rss/feed": "https://deno.land/x/rss@0.5.8/src/types/feed.ts",
     "deno_dom": "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts",
     "dayjs": "npm:dayjs@1.11.7",
-    "notion_sdk/client": "https://deno.land/x/notion_sdk@v2.2.3/src/Client.ts",
-    "notion_sdk/api_endpoints": "https://deno.land/x/notion_sdk@v2.2.3/src/api-endpoints.ts"
+    "@notionhq/client": "npm:@notionhq/client@2.2.10"
   }
 }

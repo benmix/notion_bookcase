@@ -10,10 +10,9 @@ import { BookItem, GoodReadsBookType } from "../types.ts";
 import { DOMParser } from "deno_dom";
 import { createPage, queryBooks, updatePage } from "./notion_api.ts";
 import { getIDFromURLForGoodReads, templateURL } from "../utils.ts";
-import dayjs from "npm:dayjs@1.11.7";
+import dayjs from "dayjs";
 
-const bookURL =
-  templateURL`http://www.goodreads.com/review/list/${0}?${"shelf"}&${"page"}&sort=date_updated&order=d`;
+const bookURL = templateURL`http://www.goodreads.com/review/list/${0}?${"shelf"}&${"page"}&sort=date_updated&order=d`;
 
 export async function fetchBookItems(
   shelf: GoodReadsBookType,
@@ -21,21 +20,21 @@ export async function fetchBookItems(
   data: BookItem[] = [],
 ): Promise<{ data: BookItem[]; nextPage: number | null }> {
   const parsedData: BookItem[] = data;
-  const response =
-    await (await fetch(bookURL(GOODREADS_USER_ID, { shelf, page }), {
+  const response = await (
+    await fetch(bookURL(GOODREADS_USER_ID, { shelf, page }), {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "User-Agent": USER_AGENT,
       },
-    }))
-      .text();
+    })
+  ).text();
 
   const dom = new DOMParser().parseFromString(response, "text/html")!;
   const nextPageDom = dom.querySelector("a.next_page");
 
   const bookItemContents = dom.querySelectorAll(".bookalike.review");
   // bugs: https://github.com/b-fuze/deno-dom/issues/4
-  bookItemContents.forEach((_, index) => {
+  for (let index = 0; index < bookItemContents.length; index++) {
     const titleElm = dom.querySelector(
       `#booksBody tr:nth-of-type(${index + 1}) > td.title a`,
     );
@@ -80,33 +79,35 @@ export async function fetchBookItems(
       `#booksBody tr:nth-of-type(${index + 1}) > td.date_added span`,
     );
 
-    const link = `https://www.goodreads.com${
-      titleElm?.getAttribute("href")?.trim()
-    }`;
+    const link = `https://www.goodreads.com${titleElm
+      ?.getAttribute("href")
+      ?.trim()}`;
     const title = titleElm?.textContent.trim();
     const addDate = dataAddElm?.textContent.trim();
     const startDate = dataStartElm?.textContent.trim();
     const readDate = dataReadElm?.textContent.trim();
-    const rating = RATING_TEXT_GOODREADS[
-      ratingElm?.getAttribute("title")
-        ?.trim() as keyof typeof RATING_TEXT_GOODREADS
-    ];
+    const rating =
+      RATING_TEXT_GOODREADS[
+        ratingElm
+          ?.getAttribute("title")
+          ?.trim() as keyof typeof RATING_TEXT_GOODREADS
+      ];
     const cover = coverElm?.getAttribute("src")?.trim();
     const author = authorElm?.textContent.trim();
     const isbn = isbn13Elm?.textContent.trim();
     const pubDate = dayjs(pubDateElm?.textContent.trim()).isValid()
       ? dayjs(pubDateElm?.textContent.trim()).format("YYYY-MM-DD")
       : dayjs(pubDateEdtionElm?.textContent.trim()).isValid()
-      ? dayjs(pubDateEdtionElm?.textContent.trim()).format("YYYY-MM-DD")
-      : undefined;
+        ? dayjs(pubDateEdtionElm?.textContent.trim()).format("YYYY-MM-DD")
+        : undefined;
     const review = reviewElm?.textContent.trim();
     const markDate = dayjs(readDate).isValid()
       ? dayjs(readDate).format("YYYY-MM-DD")
       : dayjs(startDate).isValid()
-      ? dayjs(startDate).format("YYYY-MM-DD")
-      : dayjs(addDate).isValid()
-      ? dayjs(addDate).format("YYYY-MM-DD")
-      : undefined;
+        ? dayjs(startDate).format("YYYY-MM-DD")
+        : dayjs(addDate).isValid()
+          ? dayjs(addDate).format("YYYY-MM-DD")
+          : undefined;
     const data = {
       [DB_PROPERTIES.条目链接]: link,
       [DB_PROPERTIES.封面]: cover,
@@ -119,48 +120,59 @@ export async function fetchBookItems(
       [DB_PROPERTIES.状态]: STATUS[shelf],
       [DB_PROPERTIES.译者]: author,
       [DB_PROPERTIES.标注日期]: markDate,
-      [DB_PROPERTIES.书名]: title,
     };
     parsedData.push(data);
-  });
+  }
 
   return { data: parsedData, nextPage: nextPageDom ? page + 1 : null };
 }
 
 export const getBookItemsInDatabase = async (bookItems: BookItem[]) => {
-  return await queryBooks(
-    bookItems.map((book) => {
+  const ids = bookItems
+    .map((book) => {
       if (typeof book?.[DB_PROPERTIES.条目链接] == "string") {
         return getIDFromURLForGoodReads(book[DB_PROPERTIES.条目链接]);
       } else {
         return "";
       }
-    }),
-    "goodreads",
-  );
+    })
+    .filter((id) => !!id);
+
+  if (!ids.length) return [];
+
+  return await queryBooks(ids, "goodreads");
 };
 
 export const updateBookItemsInDatabase = async (bookItems: BookItem[]) => {
   const bookItemsInDatabase = await getBookItemsInDatabase(bookItems);
-  bookItems.forEach((newBookItem) => {
-    const originBookItem = bookItemsInDatabase.find((item) => {
-      if (
-        typeof item?.[DB_PROPERTIES.条目链接] == "string" &&
-        typeof newBookItem?.[DB_PROPERTIES.条目链接] == "string"
-      ) {
-        return getIDFromURLForGoodReads(item?.[DB_PROPERTIES.条目链接]) ===
-          getIDFromURLForGoodReads(newBookItem?.[DB_PROPERTIES.条目链接]);
+
+  await Promise.all(
+    bookItems.map(async (newBookItem) => {
+      const link = newBookItem?.[DB_PROPERTIES.条目链接];
+      if (typeof link !== "string" || !getIDFromURLForGoodReads(link)) return;
+
+      const originBookItem =
+        bookItemsInDatabase.find((item) => {
+          if (
+            typeof item?.[DB_PROPERTIES.条目链接] == "string" &&
+            typeof newBookItem?.[DB_PROPERTIES.条目链接] == "string"
+          ) {
+            return (
+              getIDFromURLForGoodReads(item?.[DB_PROPERTIES.条目链接]) ===
+              getIDFromURLForGoodReads(newBookItem?.[DB_PROPERTIES.条目链接])
+            );
+          } else {
+            return false;
+          }
+        }) || {};
+
+      const updatedBookItem = Object.assign({}, originBookItem, newBookItem);
+
+      if (updatedBookItem.page_id) {
+        await updatePage(updatedBookItem);
       } else {
-        return false;
+        await createPage(updatedBookItem);
       }
-    }) || {};
-
-    const updatedBookItem = Object.assign({}, originBookItem, newBookItem);
-
-    if (updatedBookItem.page_id) {
-      updatePage(updatedBookItem);
-    } else {
-      createPage(updatedBookItem);
-    }
-  });
+    }),
+  );
 };

@@ -10,6 +10,8 @@
 - [x] Use douban rss source to sync book reading status.
 - [x] Use douban page crawler to sync book reading status.
 - [x] Use goodreads page crawler to sync book reading status.
+- [x] Uses official `@notionhq/client` with strict env validation (`NOTION_TOKEN`, `NOTION_BOOK_DATABASE_ID`, `DOUBAN_USER_ID`, `GOODREADS_USER_ID`).
+- [x] Sync scripts fail fast on missing env / Notion errors and log successes with counts.
 
 ## Showcase
 

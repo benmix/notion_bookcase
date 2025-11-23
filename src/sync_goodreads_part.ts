@@ -4,6 +4,12 @@ import {
   fetchBookItems,
   updateBookItemsInDatabase,
 } from "./apis/goodreads_api.ts";
+import {
+  GOODREADS_USER_ID,
+  NOTION_BOOK_DATABASE_ID,
+  NOTION_TOKEN,
+} from "./constants.ts";
+import { assertRequiredEnv } from "./utils.ts";
 
 async function fetchFirstPageBookItems(
   shelf: GoodReadsBookType,
@@ -14,14 +20,35 @@ async function fetchFirstPageBookItems(
   return bookItems;
 }
 
-const readingBookItems = await fetchFirstPageBookItems("currently-reading", 0);
-const wannaReadingBookItems = await fetchFirstPageBookItems("to-read", 0);
-const readBookItems = await fetchFirstPageBookItems("read", 0);
+async function main() {
+  assertRequiredEnv({
+    NOTION_TOKEN,
+    NOTION_BOOK_DATABASE_ID,
+    GOODREADS_USER_ID,
+  });
 
-const allBookItems: BookItem[] = [
-  ...readingBookItems,
-  ...wannaReadingBookItems,
-  ...readBookItems,
-];
+  const readingBookItems = await fetchFirstPageBookItems(
+    "currently-reading",
+    0,
+  );
+  const wannaReadingBookItems = await fetchFirstPageBookItems("to-read", 0);
+  const readBookItems = await fetchFirstPageBookItems("read", 0);
 
-updateBookItemsInDatabase(allBookItems);
+  const allBookItems: BookItem[] = [
+    ...readingBookItems,
+    ...wannaReadingBookItems,
+    ...readBookItems,
+  ];
+
+  await updateBookItemsInDatabase(allBookItems);
+  console.log(
+    `Goodreads part sync done. total=${allBookItems.length} (read:${readBookItems.length}, reading:${readingBookItems.length}, wish:${wannaReadingBookItems.length})`,
+  );
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error("Goodreads part sync failed", error);
+  Deno.exit(1);
+}
