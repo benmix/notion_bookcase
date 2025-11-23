@@ -11,7 +11,7 @@ Keep Goodreads and Douban reading logs in sync with a Notion database. The proje
 
 ## Showcase
 
-[BenMix's Bookcase](https://benmix.com/benmix/a40e2bf289d244edbcf2acf0b6acdfc2?v=61358fa5f66942bd8aeaeb714c3d808d)
+[BenMix's Bookcase](https://benmix.notion.site/a40e2bf289d244edbcf2acf0b6acdfc2?v=61358fa5f66942bd8aeaeb714c3d808d)
 
 <img width='70%' src='/assets/screenshot_showcase.png'/>
 
