@@ -31,7 +31,7 @@
 
 ## Phase 3: User Story 1 - 豆瓣同步到 Notion（P1） 🎯
 **Goal**: 全量与 RSS 增量同步豆瓣书目，字段完整且去重
-**Independent Test**: 运行 `deno task start:dounan:full` 与 `start:douban:rss`，校验记录数量与字段完整性并无重复
+**Independent Test**: 运行 `deno task start:douban:full` 与 `start:douban:rss`，校验记录数量与字段完整性并无重复
 
 ### Implementation for User Story 1
 - [x] T301 [US1] 修正 `src/apis/douban_api.ts` 列表解析的异步控制（for...of/Promise.all），确保详情抓取完成后再返回

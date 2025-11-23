@@ -1,7 +1,7 @@
 {
   "tasks": {
     "start:douban:rss": "deno run -A src/sync_douban_rss.ts",
-    "start:dounan:full": "deno run -A src/sync_douban_full.ts",
+    "start:douban:full": "deno run -A src/sync_douban_full.ts",
     "start:goodreads:full": "deno run -A src/sync_goodreads_full.ts",
     "start:goodreads:part": "deno run -A src/sync_goodreads_part.ts"
   },

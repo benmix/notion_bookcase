@@ -7,7 +7,7 @@
 ## 配置与依赖
 - [ ] CHK001 已设置 `NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID`、`DOUBAN_USER_ID`、`GOODREADS_USER_ID`，缺一即失败退出。
 - [ ] CHK002 `deno.json` imports 可正常解析（deno_dom、rss、dayjs、@notionhq/client）。
-- [ ] CHK003 运行命令可用：`deno task start:dounan:full`、`start:douban:rss`、`start:goodreads:full`、`start:goodreads:part`。
+- [ ] CHK003 运行命令可用：`deno task start:douban:full`、`start:douban:rss`、`start:goodreads:full`、`start:goodreads:part`。
 
 ## 豆瓣同步（US1）
 - [ ] CHK101 全量同步：数量与豆瓣 wish/do/collect 之和匹配，字段齐全（书名、封面、状态、评分、标注日期、出版信息等）。
