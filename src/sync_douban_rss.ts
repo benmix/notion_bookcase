@@ -1,5 +1,5 @@
 import "dotenv/load";
-import dayjs from "npm:dayjs@1.11.7";
+import dayjs from "dayjs";
 import { parseFeed } from "rss";
 import { DOMParser } from "deno_dom";
 import { FeedEntry } from "rss/feed";
@@ -9,10 +9,11 @@ import {
   DB_PROPERTIES,
   DOUBAN_USER_ID,
   NOTION_BOOK_DATABASE_ID,
+  NOTION_TOKEN,
   RATING_TEXT,
 } from "./constants.ts";
 import { BookItem } from "./types.ts";
-import { getIDFromURL } from "./utils.ts";
+import { assertRequiredEnv, getIDFromURL, withRetry } from "./utils.ts";
 
 function getStatusFromTitle(title?: string): string {
   const [status] = title?.match(/^想读|(?<=最近)在读|读过/) || [""];
@@ -49,59 +50,85 @@ function parseBookMarkItem(item: FeedEntry): BookItem {
   return data;
 }
 
-const response = await fetch(
-  `https://www.douban.com/feed/people/${DOUBAN_USER_ID}/interests`,
-);
-const xml = await response.text();
-const feed = await parseFeed(xml);
+async function main() {
+  assertRequiredEnv({
+    NOTION_TOKEN,
+    NOTION_BOOK_DATABASE_ID,
+    DOUBAN_USER_ID,
+  });
 
-const feedsData = feed.entries.filter((item) =>
-  /book.douban/.test(item.links[0].href || "")
-).map((item) => parseBookMarkItem(item));
+  const response = await fetch(
+    `https://www.douban.com/feed/people/${DOUBAN_USER_ID}/interests`,
+  );
+  const xml = await response.text();
+  const feed = await parseFeed(xml);
 
-if (!feedsData.length) {
-  console.log("No Need to Update Datebase");
-  Deno.exit(1);
+  const feedsData = feed.entries
+    .filter((item) => /book.douban/.test(item.links[0].href || ""))
+    .map((item) => parseBookMarkItem(item));
+
+  if (!feedsData.length) {
+    console.log("No Need to Update Datebase");
+    return;
+  }
+
+  await Promise.all(
+    feedsData.map(async (item) => {
+      const bookUrl = item?.[DB_PROPERTIES.条目链接];
+      if (typeof bookUrl == "string") {
+        try {
+          const detail = await withRetry(() => htmlParser(bookUrl));
+          Object.assign(item, detail);
+        } catch (error) {
+          console.warn("Failed to fetch douban detail", bookUrl, error);
+        }
+      }
+    }),
+  );
+
+  const feedsInDatabase = await queryBooks(
+    feedsData.map((feed) => {
+      const bookUrl = feed?.[DB_PROPERTIES.条目链接];
+      if (typeof bookUrl == "string") {
+        return getIDFromURL(bookUrl);
+      } else return "";
+    }),
+    "douban",
+  );
+
+  await Promise.all(
+    feedsData.map(async (feed) => {
+      const originFeed =
+        feedsInDatabase.find((item) => {
+          const itemBookUrl = item?.[DB_PROPERTIES.条目链接];
+          const feedBookUrl = feed?.[DB_PROPERTIES.条目链接];
+
+          if (
+            typeof itemBookUrl == "string" &&
+            typeof feedBookUrl == "string"
+          ) {
+            return getIDFromURL(itemBookUrl) === getIDFromURL(feedBookUrl);
+          } else {
+            return false;
+          }
+        }) || {};
+
+      const updatedFeed = Object.assign({}, originFeed, feed);
+
+      if (updatedFeed.page_id) {
+        await updatePage(updatedFeed);
+      } else {
+        await createPage(updatedFeed);
+      }
+    }),
+  );
+
+  console.log(`Douban RSS sync done. total=${feedsData.length}`);
 }
 
-if (!NOTION_BOOK_DATABASE_ID) {
-  console.log(`No found notion database id`);
+try {
+  await main();
+} catch (error) {
+  console.error("Douban RSS sync failed", error);
   Deno.exit(1);
 }
-
-await Promise.all(feedsData.map(async (item) => {
-  if (typeof item?.[DB_PROPERTIES.条目链接] == "string") {
-    Object.assign(item, await htmlParser(item[DB_PROPERTIES.条目链接]));
-  }
-}));
-
-const feedsInDatabase = await queryBooks(
-  feedsData.map((feed) => {
-    if (typeof feed?.[DB_PROPERTIES.条目链接] == "string") {
-      return getIDFromURL(feed[DB_PROPERTIES.条目链接]);
-    } else return "";
-  }),
-  "douban",
-);
-
-feedsData.forEach((feed) => {
-  const originFeed = feedsInDatabase.find((item) => {
-    if (
-      typeof feed?.[DB_PROPERTIES.条目链接] == "string" &&
-      typeof item?.[DB_PROPERTIES.条目链接] == "string"
-    ) {
-      return getIDFromURL(item?.[DB_PROPERTIES.条目链接]) ===
-        getIDFromURL(feed?.[DB_PROPERTIES.条目链接]);
-    } else {
-      return false;
-    }
-  }) || {};
-
-  const updatedFeed = Object.assign({}, originFeed, feed);
-
-  if (updatedFeed.page_id) {
-    updatePage(updatedFeed);
-  } else {
-    createPage(updatedFeed);
-  }
-});

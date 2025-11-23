@@ -1,9 +1,9 @@
-import Client from "notion_sdk/client";
-import {
+import { Client } from "@notionhq/client";
+import type {
   CreatePageParameters,
   PageObjectResponse,
   UpdatePageParameters,
-} from "notion_sdk/api_endpoints";
+} from "@notionhq/client/build/src/api-endpoints.js";
 import {
   DB_PROPERTIES,
   EMOJI,
@@ -17,13 +17,9 @@ export const notion = new Client({
   auth: NOTION_TOKEN,
 });
 
-export function notionParser(
-  item: PageObjectResponse,
-): BookItem {
+export function notionParser(item: PageObjectResponse): BookItem {
   const data: BookItem = { page_id: item.id };
-  const keys = Object.keys(
-    item.properties,
-  ) as (keyof typeof DB_PROPERTIES)[];
+  const keys = Object.keys(item.properties) as (keyof typeof DB_PROPERTIES)[];
 
   keys.forEach((key) => {
     data[key] = getProperty(item.properties, key);
@@ -32,65 +28,55 @@ export function notionParser(
   return data;
 }
 
-export function getProperty(
-  item: PageObjectResponse["properties"],
+function getProperty(
+  properties: PageObjectResponse["properties"],
   key: keyof typeof DB_PROPERTIES,
 ) {
-  const property = PropertyType[key];
-  const propertyItem = item[key];
+  const propertyType = PropertyType[key];
+  const propertyItem = properties[key];
 
-  switch (property) {
+  switch (propertyType) {
     case "title":
-      if ("title" === propertyItem.type) {
-        if (propertyItem?.title?.[0].type === "text") {
-          return propertyItem?.title?.[0]?.text?.content || null;
-        }
+      if (propertyItem.type === "title") {
+        const titleItem = propertyItem.title?.[0];
+        return titleItem?.type === "text"
+          ? titleItem.text?.content || null
+          : null;
       }
       break;
     case "files":
-      if ("files" === propertyItem.type) {
-        if (propertyItem?.files?.[0].type === "external") {
-          return propertyItem?.files?.[0]?.external.url || null;
-        }
+      if (propertyItem.type === "files") {
+        const fileItem = propertyItem.files?.[0];
+        return fileItem?.type === "external" ? fileItem.external.url : null;
       }
       break;
     case "date":
-      if ("date" === propertyItem.type) {
-        return propertyItem.date?.start || null;
-      }
-      break;
+      return propertyItem.type === "date" ? propertyItem.date?.start : null;
     case "multi_select":
-      if ("multi_select" === propertyItem.type) {
-        return propertyItem.multi_select[0]?.name || null;
-      }
-      break;
+      return propertyItem.type === "multi_select"
+        ? propertyItem.multi_select[0]?.name || null
+        : null;
     case "rich_text":
-      if ("rich_text" === propertyItem.type) {
-        if (propertyItem?.rich_text?.[0]?.type === "text") {
-          return propertyItem.rich_text[0]?.text?.content || null;
-        }
+      if (propertyItem.type === "rich_text") {
+        const richItem = propertyItem.rich_text?.[0];
+        return richItem?.type === "text"
+          ? richItem.text?.content || null
+          : null;
       }
       break;
     case "number":
-      if ("number" === propertyItem.type) {
-        return propertyItem.number || null;
-      }
-      break;
+      return propertyItem.type === "number"
+        ? propertyItem.number || null
+        : null;
     case "url":
-      if ("url" === propertyItem.type) {
-        return propertyItem.url || null;
-      }
-      break;
+      return propertyItem.type === "url" ? propertyItem.url || null : null;
     default:
       return null;
   }
   return null;
 }
 
-export function setProperty(
-  val: string | null | number | undefined,
-  key: string,
-) {
+function setProperty(val: string | number | null | undefined, key: string) {
   if (val === null || val === undefined) return null;
 
   switch (key) {
@@ -99,100 +85,77 @@ export function setProperty(
         title: [
           {
             text: {
-              content: val || "",
+              content: String(val),
             },
           },
         ],
       };
     case "files":
       return {
-        "files": [{
-          "name": typeof val == "string" ? val?.slice(0, 100) : val,
-          "external": {
-            "url": val,
-          },
-        }],
-      };
-    case "date":
-      return {
-        date: {
-          start: val,
-        },
-      };
-    case "multi_select":
-      return {
-        "multi_select": [
+        files: [
           {
-            name: val,
+            name: typeof val === "string" ? val.slice(0, 100) : String(val),
+            external: { url: String(val) },
           },
         ],
       };
+    case "date":
+      return { date: { start: val } };
+    case "multi_select":
+      return { multi_select: [{ name: val }] };
     case "rich_text":
       return {
-        "rich_text": [
+        rich_text: [
           {
             type: "text",
-            text: {
-              content: val || "",
-            },
+            text: { content: String(val) },
           },
         ],
       };
     case "number":
-      return {
-        number: Number(val),
-      };
+      return { number: Number(val) };
     case "url":
-      return {
-        url: val,
-      };
-
+      return { url: String(val) };
     default:
       return null;
   }
 }
 
-export function deleteUnusedProperties(properties: BookItem) {
-  Object.keys(DB_PROPERTIES).map((key) => {
-    if (properties[key as unknown as DB_PROPERTIES] === null) {
-      delete properties[key as unknown as DB_PROPERTIES];
+function buildNotionProperties(item: BookItem) {
+  const entries = Object.keys(DB_PROPERTIES).map((key) => [
+    key,
+    setProperty(
+      item[key as keyof typeof DB_PROPERTIES],
+      PropertyType[key as keyof typeof DB_PROPERTIES],
+    ),
+  ]);
+
+  const properties = Object.fromEntries(entries);
+  deleteUnusedProperties(properties);
+  return properties;
+}
+
+function deleteUnusedProperties(properties: BookItem) {
+  for (const key of Object.keys(DB_PROPERTIES)) {
+    if (properties[key as keyof typeof DB_PROPERTIES] === null) {
+      delete properties[key as keyof typeof DB_PROPERTIES];
     }
-  });
+  }
 }
 
 export async function createPage(item: BookItem) {
   const data = {
-    parent: {
-      database_id: NOTION_BOOK_DATABASE_ID,
-    },
+    parent: { database_id: NOTION_BOOK_DATABASE_ID },
     icon: {
       type: "emoji",
       emoji: EMOJI[item[DB_PROPERTIES.状态] as keyof typeof EMOJI] || "",
     },
     cover: {
       type: "external",
-      external: {
-        url: item?.[DB_PROPERTIES.封面] || "",
-      },
+      external: { url: item?.[DB_PROPERTIES.封面] || "" },
     },
-    properties: {},
+    properties: buildNotionProperties(item),
   };
-
-  data.properties = Object.fromEntries(
-    Object.keys(DB_PROPERTIES).map(
-      (
-        key,
-      ) => [
-        key,
-        setProperty(
-          item[key as keyof typeof DB_PROPERTIES],
-          PropertyType[key as keyof typeof DB_PROPERTIES],
-        ),
-      ],
-    ),
-  );
-
-  deleteUnusedProperties(data.properties);
 
   await notion.pages.create(data as CreatePageParameters);
 }
@@ -206,28 +169,11 @@ export async function updatePage(item: BookItem) {
     },
     cover: {
       type: "external",
-      external: {
-        url: item?.[DB_PROPERTIES.封面] || "",
-      },
+      external: { url: item?.[DB_PROPERTIES.封面] || "" },
     },
-    properties: {},
+    properties: buildNotionProperties(item),
   };
 
-  data.properties = Object.fromEntries(
-    Object.keys(DB_PROPERTIES).map(
-      (
-        key,
-      ) => [
-        key,
-        setProperty(
-          item[key as keyof typeof DB_PROPERTIES],
-          PropertyType[key as keyof typeof DB_PROPERTIES],
-        ),
-      ],
-    ),
-  );
-
-  deleteUnusedProperties(data.properties);
   await notion.pages.update(data as UpdatePageParameters);
 }
 
@@ -235,6 +181,9 @@ export async function queryBooks(
   ids: string[],
   domain: "goodreads" | "douban",
 ) {
+  if (!NOTION_BOOK_DATABASE_ID) {
+    throw new Error("NOTION_BOOK_DATABASE_ID is required for queryBooks");
+  }
   const validIDs = ids.filter((id) => !!id.trim());
   const sliceIDs = (() => {
     const slice: string[][] = [];
@@ -246,34 +195,40 @@ export async function queryBooks(
     return slice;
   })();
 
-  const res = await Promise.all(sliceIDs.map((slice) =>
-    notion.databases.query({
-      database_id: NOTION_BOOK_DATABASE_ID || "",
-      filter: {
-        or: slice.map((id) => ({
-          and: [
-            {
-              property: DB_PROPERTIES.条目链接,
-              url: {
-                contains: domain,
-              },
-            },
-            {
-              property: DB_PROPERTIES.条目链接,
-              url: {
-                contains: id,
-              },
-            },
-          ],
-        })),
-      },
-    }).then((data) => {
-      return data.results.map((item) => {
-        if (!("properties" in item)) return;
-        return notionParser(item);
-      });
-    })
-  ));
+  const res = await Promise.all(
+    sliceIDs.map((idsSlice) =>
+      notion.databases
+        .query({
+          database_id: NOTION_BOOK_DATABASE_ID || "",
+          filter: {
+            or: idsSlice.map((id) => ({
+              and: [
+                {
+                  property: DB_PROPERTIES.条目链接,
+                  url: {
+                    contains: domain,
+                  },
+                },
+                {
+                  property: DB_PROPERTIES.条目链接,
+                  url: {
+                    contains: id,
+                  },
+                },
+              ],
+            })),
+          },
+        })
+        .then((data) => {
+          return data.results
+            .filter(
+              (r): r is PageObjectResponse =>
+                r.object === "page" && "properties" in r,
+            )
+            .map((item) => notionParser(item));
+        }),
+    ),
+  );
 
   return res.flat();
 }
