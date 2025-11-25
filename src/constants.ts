@@ -75,7 +75,11 @@ export const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.62";
 
+export const NOTION_VERSION = "2025-09-03";
 export const DOUBAN_USER_ID = Deno.env.get("DOUBAN_USER_ID");
 export const NOTION_TOKEN = Deno.env.get("NOTION_TOKEN");
 export const NOTION_BOOK_DATABASE_ID = Deno.env.get("NOTION_BOOK_DATABASE_ID");
+export const NOTION_BOOK_DATA_SOURCE_ID = Deno.env.get(
+  "NOTION_BOOK_DATA_SOURCE_ID",
+);
 export const GOODREADS_USER_ID = Deno.env.get("GOODREADS_USER_ID");

@@ -13,7 +13,7 @@
 
 **Why this priority**: 豆瓣是主要数据源，缺失会让数据库失去核心价值。
 
-**Independent Test**: 配置 `DOUBAN_USER_ID`、`NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID` 后运行 `deno task start:douban:full` 或 `deno task start:douban:rss`，校验 Notion 中条目数量与豆瓣一致且无重复。
+**Independent Test**: 配置 `DOUBAN_USER_ID`、`NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID`（多数据源库提供 `NOTION_BOOK_DATA_SOURCE_ID`）后运行 `deno task start:douban:full` 或 `deno task start:douban:rss`，校验 Notion 中条目数量与豆瓣一致且无重复。
 
 **Acceptance Scenarios**:
 
@@ -29,7 +29,7 @@
 
 **Why this priority**: Goodreads 是次要但重要的数据源，能覆盖非豆瓣书籍。
 
-**Independent Test**: 配置 `GOODREADS_USER_ID` 与 Notion 后运行 `deno task start:goodreads:full` 或 `start:goodreads:part`，检查 Notion 写入正确且无重复。
+**Independent Test**: 配置 `GOODREADS_USER_ID` 与 Notion（含 `NOTION_BOOK_DATA_SOURCE_ID` 如有多数据源）后运行 `deno task start:goodreads:full` 或 `start:goodreads:part`，检查 Notion 写入正确且无重复。
 
 **Acceptance Scenarios**:
 
@@ -53,9 +53,27 @@
 
 ---
 
+### User Story 4 - 生成已读封面墙 (Priority: P2)
+
+作为用户，我希望快速生成“已读封面墙”大图并设置为 Notion 书架数据库的封面，便于展示近期阅读。
+
+**Why this priority**: 可视化展示提升可读性和分享体验，与同步流程解耦为独立命令。
+
+**Independent Test**: 运行 `deno task generate:cover-wall --columns 5 --rows 8`，验证生成图片尺寸正确、封面按最近阅读排序、上传并更新数据库封面成功且无重复上传。
+
+**Acceptance Scenarios**:
+
+1. **Given** Notion 数据库存在状态为“读过”的条目，**When** 运行生成命令，**Then** 下载这些条目封面，按列行参数拼接生成图片并上传到 Notion，数据库封面更新为新图片。
+2. **Given** 条目列表与上次生成相比无变化，**When** 运行生成命令，**Then** 任务检测到缓存签名一致并跳过重新抓取和上传。
+3. **Given** 部分封面无法下载，**When** 生成任务继续执行，**Then** 跳过失败图片并记录警告，不影响其它图片合成与封面更新。
+4. **Given** 生成命令执行完成，**When** 上传成功或失败，**Then** 生成的大图会以 `cover-wall-<timestamp>.png` 保存到 `assets/` 便于本地查看或重用。
+
+---
+
 ### Edge Cases
 
 - 环境变量缺失或错误（NOTION_TOKEN/NOTION_BOOK_DATABASE_ID/DOUBAN_USER_ID/GOODREADS_USER_ID）应直接失败并提示。
+- Notion 库存在多个 data source 时，未指定 `NOTION_BOOK_DATA_SOURCE_ID` 应拒绝运行；所有 Notion 请求需携带 `Notion-Version: 2025-09-03` 并使用 `data_source_id`。
 - 源站 DOM 结构变更导致字段缺失时，应记录告警并避免写入错误数据。
 - 日期字符串无法解析时应跳过该字段，避免写入 "Invalid Date" 触发 Notion 400。
 - 同一书目多次同步需幂等（按条目链接 ID 去重），避免重复页面。
@@ -77,6 +95,11 @@
 - **FR-009**: 系统 MUST 在缺少必需环境变量时退出并给出可读错误。
 - **FR-010**: 系统 SHOULD 记录或输出失败原因（网络/解析/Notion API）以便排查。
 - **FR-011**: 系统 SHOULD 对详情抓取实现轻量重试/跳过策略，避免单点失败阻塞同步。
+- **FR-012**: 系统 SHOULD 提供独立命令生成已读封面墙，支持列数、行数、单元格尺寸可配置，并按最近阅读排序。
+- **FR-013**: 系统 MUST 复用 Notion 存量封面字段，不重复抓取来源站点封面。
+- **FR-014**: 系统 MUST 上传合成后的图片到 Notion 文件接口并更新目标数据库封面；若签名未变则应跳过上传。
+- **FR-015**: 系统 MUST 使用 Notion API 版本 `2025-09-03` 并以 `data_source_id` 作为页面父级/查询参数，确保多数据源兼容；多数据源场景需显式指定 `NOTION_BOOK_DATA_SOURCE_ID`，单数据源自动发现。
+- **FR-016**: 系统 MUST 将生成的封面墙图片保存到 `assets/cover-wall-<timestamp>.png`，即使上传失败也保留本地副本。
 
 ### Key Entities *(include if feature involves data)*
 

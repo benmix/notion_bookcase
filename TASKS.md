@@ -1,7 +1,7 @@
 # Tasks: Douban/Goodreads → Notion Sync
 
-**Input**: Design documents from root `Spec.md` / `Plan.md` / `feature_spec.md`  
-**Prerequisites**: plan.md (required), spec.md (required for user stories)
+**Input**: Design documents from root `SPEC.md` / `PLAN.md` / `feature_SPEC.md`  
+**Prerequisites**: PLAN.md (required), SPEC.md (required for user stories)
 
 ## Format: `[ID] [P?] [Story] Description`
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -79,6 +79,32 @@
 
 ---
 
+## Phase 7: User Story 4 - 已读封面墙（P2）
+**Goal**: 生成已读封面墙图片并设置为 Notion 数据库封面，具备缓存和参数化
+**Independent Test**: 运行 `deno task generate:cover-wall`，验证生成、上传、数据库封面更新，重复运行在无变化时跳过
+
+- [x] T701 [US4] 查询 Notion 数据库状态为“读过”的条目，按标注日期/最后编辑时间排序获取封面列表
+- [x] T702 [US4] 基于 Jimp 拼接封面墙，支持列/行/单元格尺寸参数，失败图片跳过并告警
+- [x] T703 [US4] 上传生成图片到 Notion 文件接口并更新数据库封面
+- [x] T704 [US4] 实现签名/缓存（含 page id+cover url+参数），无变化时跳过生成与上传；提供 `--force` 选项
+- [x] T705 [US4] 新增任务命令及文档（Agents/Spec/Plan/Checklist/Changelog/README）说明使用方式
+- [x] T706 [US4] 将生成的封面墙图片保存到 `assets/cover-wall-*.png`，方便本地查看与上传失败兜底
+
+---
+
+## Phase 8: Notion API 2025-09-03 升级
+**Goal**: 兼容 Notion 多数据源模型，使用最新 API 版本并稳定写入
+**Independent Test**: 设置 `NOTION_VERSION=2025-09-03`，配置单一/多 data source 数据库，运行同步/封面墙命令可正常创建/查询页面
+
+- [x] T801 [GEN] 将 Notion 客户端 `notionVersion` 设为 `2025-09-03`，页面父级改为 `data_source_id`
+- [x] T802 [GEN] 增加 data source 发现逻辑（优先 `NOTION_BOOK_DATA_SOURCE_ID`，否则查询数据库唯一 data source；多数据源未指明时失败）
+- [x] T803 [GEN] 将数据库查询改为 `dataSources.query`，过滤结果仅返回 pages，保持去重逻辑
+- [x] T804 [GEN] 文档同步 Notion 升级要求（环境变量、API 版本、运行前置条件）
+
+---
+
 ## Dependencies & Execution Order
 - Phase 1 → Phase 2 → User Stories (Phase 3/4/5) → Polish (Phase 6)
 - US1/US2/US3 可在完成 Phase 2 后并行，但共享的 Notion SDK 替换与 awaitable 写入必须先完成
+- US4 依赖前置 Notion 查询能力与稳定性完成后执行
+- Phase 8 依赖基础同步稳定后执行，覆盖所有入口的 Notion API 升级

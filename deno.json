@@ -3,7 +3,8 @@
     "start:douban:rss": "deno run -A src/sync_douban_rss.ts",
     "start:douban:full": "deno run -A src/sync_douban_full.ts",
     "start:goodreads:full": "deno run -A src/sync_goodreads_full.ts",
-    "start:goodreads:part": "deno run -A src/sync_goodreads_part.ts"
+    "start:goodreads:part": "deno run -A src/sync_goodreads_part.ts",
+    "generate:cover-wall": "deno run -A src/generate_cover_wall.ts"
   },
   "imports": {
     "dotenv/load": "https://deno.land/std@0.182.0/dotenv/load.ts",
@@ -11,6 +12,8 @@
     "rss/feed": "https://deno.land/x/rss@0.5.8/src/types/feed.ts",
     "deno_dom": "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts",
     "dayjs": "npm:dayjs@1.11.7",
-    "@notionhq/client": "npm:@notionhq/client@2.2.10"
+    "@notionhq/client": "npm:@notionhq/client@5.4.0",
+    "jimp": "npm:jimp@0.22.10",
+    "@std/cli/parse-args": "jsr:@std/cli"
   }
 }

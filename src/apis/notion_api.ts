@@ -3,19 +3,65 @@ import type {
   CreatePageParameters,
   PageObjectResponse,
   UpdatePageParameters,
-} from "@notionhq/client/build/src/api-endpoints.js";
+} from "@notionhq/client";
 import {
   DB_PROPERTIES,
   EMOJI,
+  NOTION_BOOK_DATA_SOURCE_ID,
   NOTION_BOOK_DATABASE_ID,
   NOTION_TOKEN,
+  NOTION_VERSION,
   PropertyType,
 } from "../constants.ts";
 import { BookItem } from "../types.ts";
 
 export const notion = new Client({
   auth: NOTION_TOKEN,
+  notionVersion: NOTION_VERSION,
 });
+
+let cachedBookDataSourceId: string | null = null;
+
+async function getBookDataSourceId(): Promise<string> {
+  if (cachedBookDataSourceId) return cachedBookDataSourceId;
+
+  const envId = NOTION_BOOK_DATA_SOURCE_ID?.trim();
+  if (envId) {
+    cachedBookDataSourceId = envId;
+    return envId;
+  }
+
+  if (!NOTION_BOOK_DATABASE_ID) {
+    throw new Error(
+      "NOTION_BOOK_DATABASE_ID is required to resolve data source",
+    );
+  }
+
+  const database = await notion.databases.retrieve({
+    database_id: NOTION_BOOK_DATABASE_ID,
+  });
+  if (!("data_sources" in database)) {
+    throw new Error(
+      `Notion response missing data_sources for database ${NOTION_BOOK_DATABASE_ID}. Confirm API version ${NOTION_VERSION} is applied.`,
+    );
+  }
+  const dataSources = database.data_sources || [];
+
+  if (!dataSources.length) {
+    throw new Error(
+      `No data sources found for database ${NOTION_BOOK_DATABASE_ID}. Add one in Notion or set NOTION_BOOK_DATA_SOURCE_ID.`,
+    );
+  }
+
+  if (dataSources.length > 1) {
+    throw new Error(
+      `Multiple data sources found for database ${NOTION_BOOK_DATABASE_ID}. Set NOTION_BOOK_DATA_SOURCE_ID to choose one.`,
+    );
+  }
+
+  cachedBookDataSourceId = dataSources[0].id;
+  return cachedBookDataSourceId;
+}
 
 export function notionParser(item: PageObjectResponse): BookItem {
   const data: BookItem = { page_id: item.id };
@@ -47,7 +93,9 @@ function getProperty(
     case "files":
       if (propertyItem.type === "files") {
         const fileItem = propertyItem.files?.[0];
-        return fileItem?.type === "external" ? fileItem.external.url : null;
+        if (fileItem?.type === "external") return fileItem.external.url;
+        if (fileItem?.type === "file") return fileItem.file.url;
+        return null;
       }
       break;
     case "date":
@@ -144,8 +192,9 @@ function deleteUnusedProperties(properties: BookItem) {
 }
 
 export async function createPage(item: BookItem) {
+  const dataSourceId = await getBookDataSourceId();
   const data = {
-    parent: { database_id: NOTION_BOOK_DATABASE_ID },
+    parent: { type: "data_source_id", data_source_id: dataSourceId },
     icon: {
       type: "emoji",
       emoji: EMOJI[item[DB_PROPERTIES.状态] as keyof typeof EMOJI] || "",
@@ -181,10 +230,10 @@ export async function queryBooks(
   ids: string[],
   domain: "goodreads" | "douban",
 ) {
-  if (!NOTION_BOOK_DATABASE_ID) {
-    throw new Error("NOTION_BOOK_DATABASE_ID is required for queryBooks");
-  }
   const validIDs = ids.filter((id) => !!id.trim());
+  if (!validIDs.length) return [];
+
+  const dataSourceId = await getBookDataSourceId();
   const sliceIDs = (() => {
     const slice: string[][] = [];
     let end = 0;
@@ -197,9 +246,10 @@ export async function queryBooks(
 
   const res = await Promise.all(
     sliceIDs.map((idsSlice) =>
-      notion.databases
+      notion.dataSources
         .query({
-          database_id: NOTION_BOOK_DATABASE_ID || "",
+          data_source_id: dataSourceId,
+          result_type: "page",
           filter: {
             or: idsSlice.map((id) => ({
               and: [
@@ -231,4 +281,107 @@ export async function queryBooks(
   );
 
   return res.flat();
+}
+
+export async function fetchReadBooksFromDatabase(limit?: number) {
+  const dataSourceId = await getBookDataSourceId();
+  const results: BookItem[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const queryRes = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      result_type: "page",
+      page_size: 100,
+      start_cursor: cursor,
+      filter: {
+        property: DB_PROPERTIES.状态,
+        multi_select: { contains: "读过" },
+      },
+      sorts: [
+        { property: DB_PROPERTIES.标注日期, direction: "descending" },
+        { timestamp: "last_edited_time", direction: "descending" },
+      ],
+    });
+
+    const parsed = queryRes.results
+      .filter(
+        (r): r is PageObjectResponse =>
+          r.object === "page" && "properties" in r,
+      )
+      .map((item) => notionParser(item));
+
+    results.push(...parsed);
+    cursor = queryRes.has_more
+      ? (queryRes.next_cursor ?? undefined)
+      : undefined;
+    if (limit && results.length >= limit) {
+      return results.slice(0, limit);
+    }
+  } while (cursor);
+
+  return results;
+}
+
+type NotionUploadResponse = {
+  file?: { url: string; expiry_time?: string };
+  url?: string;
+  expiry_time?: string;
+};
+
+export async function uploadFileToNotion(
+  buffer: Uint8Array,
+  filename: string,
+  mimeType: string,
+): Promise<NotionUploadResponse["file"]> {
+  if (!NOTION_TOKEN) throw new Error("NOTION_TOKEN is required for upload");
+
+  const safeBuffer = new Uint8Array(buffer);
+  const blob = new Blob([safeBuffer.buffer], { type: mimeType });
+
+  const fileUploadObj = await notion.fileUploads.create({
+    filename: filename,
+    content_type: "image/png",
+  });
+
+  const data = await notion.fileUploads.send({
+    file_upload_id: fileUploadObj.id,
+    file: {
+      filename: filename,
+      data: blob,
+    },
+  });
+
+  const file = data.upload_url
+    ? {
+        url: data.upload_url,
+        expiry_time: data.expiry_time ? data.expiry_time : undefined,
+      }
+    : undefined;
+
+  if (!file?.url) throw new Error("Notion upload did not return a file url");
+
+  return file;
+}
+
+export async function updateDatabaseCoverWithFile(file: {
+  url: string;
+  expiry_time?: string;
+}) {
+  if (!NOTION_BOOK_DATABASE_ID) {
+    throw new Error("NOTION_BOOK_DATABASE_ID is required for database cover");
+  }
+
+  const payload = {
+    database_id: NOTION_BOOK_DATABASE_ID,
+    cover: {
+      type: "file",
+      file: {
+        url: file.url,
+        expiry_time: file.expiry_time,
+      },
+    },
+  };
+
+  await notion.databases.update(payload as never);
 }

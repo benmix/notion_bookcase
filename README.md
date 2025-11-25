@@ -21,7 +21,7 @@ Keep Goodreads and Douban reading logs in sync with a Notion database. The proje
 |-------------|---------|
 | Runtime     | Deno (TypeScript ES modules) |
 | Libraries   | `@notionhq/client`, `deno_dom`, `rss`, `dayjs` |
-| Commands    | `deno task start:douban:rss`, `deno task start:douban:full`, `deno task start:goodreads:full`, `deno task start:goodreads:part` |
+| Commands    | `deno task start:douban:rss`, `deno task start:douban:full`, `deno task start:goodreads:full`, `deno task start:goodreads:part`, `deno task generate:cover-wall` |
 | Direct run  | `deno run -A src/<script>.ts` |
 
 > All commands assume the required environment variables are exported in your shell or
