@@ -84,7 +84,7 @@
 **Independent Test**: 运行 `deno task generate:cover-wall`，验证生成、上传、数据库封面更新，重复运行在无变化时跳过
 
 - [x] T701 [US4] 查询 Notion 数据库状态为“读过”的条目，按标注日期/最后编辑时间排序获取封面列表
-- [x] T702 [US4] 基于 Jimp 拼接封面墙，支持列/行/单元格尺寸参数，失败图片跳过并告警
+- [x] T702 [US4] 基于 Jimp 拼接封面墙，支持行式紧密布局参数（画布宽度、目标行高、最大封面数/force），失败图片跳过并告警
 - [x] T703 [US4] 上传生成图片到 Notion 文件接口并更新数据库封面
 - [x] T704 [US4] 实现签名/缓存（含 page id+cover url+参数），无变化时跳过生成与上传；提供 `--force` 选项
 - [x] T705 [US4] 新增任务命令及文档（Agents/Spec/Plan/Checklist/Changelog/README）说明使用方式

@@ -1,6 +1,8 @@
 
-
 ## Recent Changes
+
+- 2025-11-26 文档：刷新 AGENTS/SPEC/PLAN/TASKS/CHECKLIST，封面墙命令参数改为 `--width/--targetRowHeight/--maxBooks`，补充缓存文件 `assets/cover_wall_cache.json` 与跳过逻辑说明。
+- 2025-11-26 代码：`notion_api.ts` 深度优化
 - 2025-11-25 功能：封面墙生成新增本地输出，生成图片会保存为 `assets/cover-wall-<timestamp>.png`，便于查看或作为上传失败兜底。
 - 2025-11-24 代码：Notion API 升级至版本 `2025-09-03`，父级/查询改用 `data_source_id`，增加 data source 发现与多数据源保护，客户端版本锁定；调整上传缓冲区处理兼容新 SDK。
 - 2025-11-24 文档：更新 Agents/Spec/Plan/Task/Checklist 以记录 data_source 流程、必需环境变量与升级验证。

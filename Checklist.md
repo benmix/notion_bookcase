@@ -5,10 +5,10 @@
 **Feature**: SPEC.md / PLAN.md / Tasks.md
 
 ## 配置与依赖
-- [ ] CHK001 已设置 `NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID`、`DOUBAN_USER_ID`、`GOODREADS_USER_ID`（多数据源库还需 `NOTION_BOOK_DATA_SOURCE_ID`），缺一即失败退出。
-- [ ] CHK002 `deno.json` imports 可正常解析（deno_dom、rss、dayjs、@notionhq/client）。
-- [ ] CHK003 运行命令可用：`deno task start:douban:full`、`start:douban:rss`、`start:goodreads:full`、`start:goodreads:part`。
-- [ ] CHK004 Notion API 版本已设为 `2025-09-03`（客户端 notionVersion），写入/查询使用 `data_source_id`；多数据源未配置 ID 时任务拒绝运行。
+- [x] CHK001 已设置 `NOTION_TOKEN`、`NOTION_BOOK_DATABASE_ID`、`DOUBAN_USER_ID`、`GOODREADS_USER_ID`（多数据源库还需 `NOTION_BOOK_DATA_SOURCE_ID`），缺一即失败退出。
+- [x] CHK002 `deno.json` imports 可正常解析（deno_dom、rss、dayjs、@notionhq/client）。
+- [x] CHK003 运行命令可用：`deno task start:douban:full`、`start:douban:rss`、`start:goodreads:full`、`start:goodreads:part`。
+- [x] CHK004 Notion API 版本已设为 `2025-09-03`（客户端 notionVersion），写入/查询使用 `data_source_id`；多数据源未配置 ID 时任务拒绝运行。
 
 ## 豆瓣同步（US1）
 - [ ] CHK101 全量同步：数量与豆瓣 wish/do/collect 之和匹配，字段齐全（书名、封面、状态、评分、标注日期、出版信息等）。
@@ -31,11 +31,11 @@
 - [ ] CHK305 同步结果日志包含成功/失败条目数量，便于人工校验。
 
 ## 封面墙生成（US4）
-- [ ] CHK501 `deno task generate:cover-wall` 可运行，列/行/单元格参数生效。
+- [ ] CHK501 `deno task generate:cover-wall --width 2400 --targetRowHeight 300 --maxBooks 50 [--force]` 可运行，行式紧密布局参数生效。
 - [ ] CHK502 仅使用 Notion 已读条目（状态=读过）的封面，按标注日期/最后编辑时间降序填充。
 - [ ] CHK503 拼接图片尺寸正确，失败的封面下载会被跳过并记录警告。
 - [ ] CHK504 上传使用 Notion 文件接口成功返回 URL，并将数据库封面更新为该文件。
-- [ ] CHK505 签名/缓存生效：条目/封面/参数未变时跳过生成与上传；`--force` 可强制刷新。
+- [ ] CHK505 签名/缓存生效：条目/封面/参数未变时跳过生成与上传（缓存文件 `assets/cover_wall_cache.json`），`--force` 可强制刷新。
 - [ ] CHK506 生成的封面墙图片会保存到 `assets/cover-wall-<timestamp>.png`，文件可读可复用。
 
 ## 文档与维护

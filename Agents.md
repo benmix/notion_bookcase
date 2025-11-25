@@ -1,6 +1,6 @@
 # notion_bookcase Development Guidelines
 
-Auto-generated from feature plans. Last updated: 2025-11-25
+Auto-generated from feature plans. Last updated: 2025-11-26
 
 ## Active Technologies
 - Deno (TypeScript)
@@ -18,6 +18,7 @@ src/
 │   ├── douban_api.ts
 │   ├── goodreads_api.ts
 │   └── notion_api.ts
+├── generate_cover_wall.ts
 ├── sync_douban_full.ts
 ├── sync_douban_rss.ts
 ├── sync_goodreads_full.ts
@@ -32,6 +33,7 @@ SPEC.md
 PLAN.md
 TASKS.md
 CHECKLIST.md
+CHANGELOGS.md
 ```
 
 ## Commands
@@ -39,7 +41,7 @@ CHECKLIST.md
 - `deno task start:douban:full` — 豆瓣全量同步
 - `deno task start:goodreads:full` — Goodreads 全量同步
 - `deno task start:goodreads:part` — Goodreads 首页增量同步
-- `deno task generate:cover-wall` — 生成已读封面墙并更新 Notion 数据库封面，同时在 `assets/cover-wall-<timestamp>.png` 保存本地副本
+- `deno task generate:cover-wall [--width 2400 --targetRowHeight 300 --maxBooks 50 --force]` — 生成已读封面墙（行式紧密布局），签名未变则跳过；本地保存 `assets/cover-wall-<timestamp>.png`
 - `deno run -A <script>` — 直接运行任意同步脚本
 
 ## Code Style
@@ -48,6 +50,7 @@ CHECKLIST.md
 - Notion：客户端初始化时设置 `notionVersion: "2025-09-03"`，页面父级/查询使用 `data_source_id`（非 database_id），多数据源需显式指定。
 - 异步：抓取与 Notion 写入需 `await`，避免 fire-and-forget；日期写入前需 `dayjs(...).isValid()`。
 - 可靠性：缺失必需环境变量时直接报错退出；豆瓣详情抓取带轻量重试，失败记录后跳过。
+- 封面墙：仅使用 Notion 已读条目封面，签名缓存写入 `assets/cover_wall_cache.json`，未变则跳过生成与上传。
 
 
 ## Documents

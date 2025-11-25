@@ -1,7 +1,7 @@
 # Implementation Plan: Notion Bookcase
 
 **Branch**: `[001-notion-sync-stabilize]`  
-**Last Updated**: 2025-11-25  
+**Last Updated**: 2025-11-26  
 **Related**: `SPEC.md`, `TASKS.md`, `CHECKLIST.md`
 
 ## Goals
@@ -22,7 +22,7 @@
 ## Current Architecture
 - `src/apis/*`: 数据抓取与 Notion 封装（查询/创建/更新、文件上传）
 - `src/sync_*`: 同步入口（豆瓣全量/RSS，Goodreads 全量/首页增量）
-- `src/generate_cover_wall.ts`: 已读封面墙生成与 Notion 数据库封面更新
+- `src/generate_cover_wall.ts`: 已读封面墙生成（行式紧密布局，签名缓存写入 `assets/cover_wall_cache.json`）与 Notion 数据库封面更新
 - `deno.json`: 任务与依赖声明
 
 ## Milestones
@@ -32,7 +32,7 @@
    - 查询 Notion 中“读过”条目 → 取封面 → Jimp 拼接 → Notion 文件上传 → 更新数据库封面。  
    - 缓存签名（参数+page id+cover url），无变更跳过；`--force` 可重建。
    - 生成后的封面墙图片以 `cover-wall-<timestamp>.png` 保存到 `assets/`，便于本地查看或上传失败时留存。
-3) **文档与入口（in progress/ongoing）**  
+3) **文档与入口（done，持续维护）**  
    - 任务命令：`deno task start:*` 同步；`deno task generate:cover-wall` 生成封面墙。  
    - 持续更新 `SPEC.md`/`TASKS.md`/`CHECKLIST.md`/`AGENTS.md`/`CHANGELOGS.md`。
 4) **Notion API 2025-09-03 升级（done）**  
@@ -49,7 +49,7 @@
 - 豆瓣 RSS 增量：`deno task start:douban:rss`
 - Goodreads 全量：`deno task start:goodreads:full`
 - Goodreads 首页增量：`deno task start:goodreads:part`
-- 封面墙生成：`deno task generate:cover-wall [--columns 5 --rows 8 --cellWidth 540 --cellHeight 750 --maxBooks N --force]`
+- 封面墙生成：`deno task generate:cover-wall [--width 2400 --targetRowHeight 300 --maxBooks 50 --force]`
 
 ## Next Updates
 - 如需新增数据源或自动化测试，请在 `TASKS.md` 补充任务并在 `CHECKLIST.md` 追加验收项。

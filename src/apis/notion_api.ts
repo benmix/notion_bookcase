@@ -65,11 +65,16 @@ async function getBookDataSourceId(): Promise<string> {
 
 export function notionParser(item: PageObjectResponse): BookItem {
   const data: BookItem = { page_id: item.id };
-  const keys = Object.keys(item.properties) as (keyof typeof DB_PROPERTIES)[];
+  const dbPropertyKeys = Object.keys(
+    DB_PROPERTIES,
+  ) as (keyof typeof DB_PROPERTIES)[];
 
-  keys.forEach((key) => {
-    data[key] = getProperty(item.properties, key);
-  });
+  // 只处理 DB_PROPERTIES 中定义的属性
+  for (const key of dbPropertyKeys) {
+    if (key in item.properties) {
+      data[key] = getProperty(item.properties, key);
+    }
+  }
 
   return data;
 }
@@ -77,9 +82,14 @@ export function notionParser(item: PageObjectResponse): BookItem {
 function getProperty(
   properties: PageObjectResponse["properties"],
   key: keyof typeof DB_PROPERTIES,
-) {
+): string | number | null {
   const propertyType = PropertyType[key];
   const propertyItem = properties[key];
+
+  // 空值检查
+  if (!propertyItem) {
+    return null;
+  }
 
   switch (propertyType) {
     case "title":
@@ -99,10 +109,12 @@ function getProperty(
       }
       break;
     case "date":
-      return propertyItem.type === "date" ? propertyItem.date?.start : null;
+      return propertyItem.type === "date"
+        ? (propertyItem.date?.start ?? null)
+        : null;
     case "multi_select":
       return propertyItem.type === "multi_select"
-        ? propertyItem.multi_select[0]?.name || null
+        ? (propertyItem.multi_select[0]?.name ?? null)
         : null;
     case "rich_text":
       if (propertyItem.type === "rich_text") {
@@ -114,10 +126,10 @@ function getProperty(
       break;
     case "number":
       return propertyItem.type === "number"
-        ? propertyItem.number || null
+        ? (propertyItem.number ?? null)
         : null;
     case "url":
-      return propertyItem.type === "url" ? propertyItem.url || null : null;
+      return propertyItem.type === "url" ? (propertyItem.url ?? null) : null;
     default:
       return null;
   }
@@ -148,9 +160,10 @@ function setProperty(val: string | number | null | undefined, key: string) {
         ],
       };
     case "date":
-      return { date: { start: val } };
+      // 确保日期是字符串格式
+      return { date: { start: String(val) } };
     case "multi_select":
-      return { multi_select: [{ name: val }] };
+      return { multi_select: [{ name: String(val) }] };
     case "rich_text":
       return {
         rich_text: [
@@ -191,39 +204,57 @@ function deleteUnusedProperties(properties: BookItem) {
   }
 }
 
+/**
+ * 构建页面的 icon 配置
+ * 仅当状态值有效时返回 icon 配置，否则返回 undefined
+ */
+function buildPageIcon(status: string | number | null | undefined) {
+  if (typeof status !== "string") return undefined;
+  const emoji = EMOJI[status as keyof typeof EMOJI];
+  if (!emoji) return undefined;
+  return { type: "emoji" as const, emoji };
+}
+
+/**
+ * 构建页面的 cover 配置
+ * 仅当封面 URL 有效时返回 cover 配置，否则返回 undefined
+ */
+function buildPageCover(coverUrl: string | number | null | undefined) {
+  if (typeof coverUrl !== "string" || !coverUrl.trim()) return undefined;
+  return { type: "external" as const, external: { url: coverUrl } };
+}
+
 export async function createPage(item: BookItem) {
   const dataSourceId = await getBookDataSourceId();
-  const data = {
+  const status = item[DB_PROPERTIES.状态];
+  const cover = item[DB_PROPERTIES.封面];
+
+  const data: CreatePageParameters = {
     parent: { type: "data_source_id", data_source_id: dataSourceId },
-    icon: {
-      type: "emoji",
-      emoji: EMOJI[item[DB_PROPERTIES.状态] as keyof typeof EMOJI] || "",
-    },
-    cover: {
-      type: "external",
-      external: { url: item?.[DB_PROPERTIES.封面] || "" },
-    },
+    icon: buildPageIcon(status),
+    cover: buildPageCover(cover),
     properties: buildNotionProperties(item),
   };
 
-  await notion.pages.create(data as CreatePageParameters);
+  await notion.pages.create(data);
 }
 
 export async function updatePage(item: BookItem) {
-  const data = {
+  if (!item.page_id) {
+    throw new Error("page_id is required for updatePage");
+  }
+
+  const status = item[DB_PROPERTIES.状态];
+  const cover = item[DB_PROPERTIES.封面];
+
+  const data: UpdatePageParameters = {
     page_id: item.page_id,
-    icon: {
-      type: "emoji",
-      emoji: EMOJI[item[DB_PROPERTIES.状态] as keyof typeof EMOJI] || "",
-    },
-    cover: {
-      type: "external",
-      external: { url: item?.[DB_PROPERTIES.封面] || "" },
-    },
+    icon: buildPageIcon(status),
+    cover: buildPageCover(cover),
     properties: buildNotionProperties(item),
   };
 
-  await notion.pages.update(data as UpdatePageParameters);
+  await notion.pages.update(data);
 }
 
 export async function queryBooks(
@@ -234,15 +265,12 @@ export async function queryBooks(
   if (!validIDs.length) return [];
 
   const dataSourceId = await getBookDataSourceId();
-  const sliceIDs = (() => {
-    const slice: string[][] = [];
-    let end = 0;
-    while (end < validIDs.length) {
-      slice.push(validIDs.slice(end, 100));
-      end += 100;
-    }
-    return slice;
-  })();
+
+  // 修复分页逻辑：slice(start, start + 100)
+  const sliceIDs: string[][] = [];
+  for (let start = 0; start < validIDs.length; start += 100) {
+    sliceIDs.push(validIDs.slice(start, start + 100));
+  }
 
   const res = await Promise.all(
     sliceIDs.map((idsSlice) =>
@@ -323,17 +351,15 @@ export async function fetchReadBooksFromDatabase(limit?: number) {
   return results;
 }
 
-type NotionUploadResponse = {
-  file?: { url: string; expiry_time?: string };
-  url?: string;
-  expiry_time?: string;
+type NotionUploadedFile = {
+  id: string;
 };
 
 export async function uploadFileToNotion(
   buffer: Uint8Array,
   filename: string,
   mimeType: string,
-): Promise<NotionUploadResponse["file"]> {
+): Promise<NotionUploadedFile> {
   if (!NOTION_TOKEN) throw new Error("NOTION_TOKEN is required for upload");
 
   const safeBuffer = new Uint8Array(buffer);
@@ -341,7 +367,7 @@ export async function uploadFileToNotion(
 
   const fileUploadObj = await notion.fileUploads.create({
     filename: filename,
-    content_type: "image/png",
+    content_type: mimeType, // 使用传入的 mimeType 参数
   });
 
   const data = await notion.fileUploads.send({
@@ -352,36 +378,31 @@ export async function uploadFileToNotion(
     },
   });
 
-  const file = data.upload_url
-    ? {
-        url: data.upload_url,
-        expiry_time: data.expiry_time ? data.expiry_time : undefined,
-      }
-    : undefined;
+  if (data.status !== "uploaded") {
+    throw new Error(`Notion file upload failed with status: ${data.status}`);
+  }
 
-  if (!file?.url) throw new Error("Notion upload did not return a file url");
-
-  return file;
+  return {
+    id: data.id,
+  };
 }
 
-export async function updateDatabaseCoverWithFile(file: {
-  url: string;
-  expiry_time?: string;
-}) {
+/**
+ * 更新数据库封面
+ * 使用 file_upload 类型，传入上传后获得的文件 ID
+ */
+export async function updateDatabaseCoverWithFile(file: NotionUploadedFile) {
   if (!NOTION_BOOK_DATABASE_ID) {
     throw new Error("NOTION_BOOK_DATABASE_ID is required for database cover");
   }
 
-  const payload = {
+  await notion.databases.update({
     database_id: NOTION_BOOK_DATABASE_ID,
     cover: {
-      type: "file",
-      file: {
-        url: file.url,
-        expiry_time: file.expiry_time,
+      type: "file_upload",
+      file_upload: {
+        id: file.id,
       },
     },
-  };
-
-  await notion.databases.update(payload as never);
+  });
 }
